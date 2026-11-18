@@ -53,7 +53,11 @@ fun MagicBallApp() {
     )
 
     var question by remember { mutableStateOf("") }
+    var previousQuestion by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("8") }
+    var showQuestion by remember { mutableStateOf(false) }
+    var sameQuestion by remember { mutableStateOf(false) }
+    var questionLabel by remember { mutableStateOf("Your question") }
 
     val background = Color(0xFF101427)
     val blue = Color(0xFF536DFE)
@@ -81,13 +85,34 @@ fun MagicBallApp() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        if ( question.isBlank()){
+            sameQuestion = false
+            questionLabel = "Your question"
+            answer = "8"
+        }
+
         OutlinedTextField(
             value = question,
             onValueChange = { question = it },
-            label = { Text("Your question") },
+            label = { Text(text = questionLabel) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
+
+        /*
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (showQuestion) {
+            Text(
+                text = previousQuestion,
+                color = blue,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(125.dp)
+            )
+        }
+        */
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -95,8 +120,17 @@ fun MagicBallApp() {
             modifier = Modifier
                 .size(280.dp)
                 .clip(CircleShape)
-                .clickable {
-                    answer = answers.random()
+                .clickable (enabled = question.isNotBlank()){
+                    if ( question != previousQuestion ) {
+                        answer = answers.random()
+                        previousQuestion = question
+                        sameQuestion = false;
+                        questionLabel = "Your question"
+                    }
+                    else {
+                        sameQuestion = true
+                        questionLabel = "Ask a different question"
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -138,8 +172,18 @@ fun MagicBallApp() {
 
         Button(
             onClick = {
-                answer = answers.random()
-            }
+                if ( question != previousQuestion ){
+                    answer = answers.random()
+                    previousQuestion = question
+                    sameQuestion = false;
+                    questionLabel = "Your question"
+                }
+                else {
+                    sameQuestion = true
+                    questionLabel = "Ask a different question"
+                }
+            },
+            enabled = question.isNotBlank()
         ) {
             Text("Ask the Magic Ball")
         }
