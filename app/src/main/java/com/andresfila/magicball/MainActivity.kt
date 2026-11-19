@@ -5,7 +5,13 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioAttributes
+import android.media.SoundPool
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -80,6 +86,31 @@ fun MagicBallApp() {
     val background = Color(0xFF101427)
     val blue = Color(0xFF536DFE)
 
+    // Initialize sound effects
+    val context = LocalContext.current
+    val soundManager = remember(context) {
+        MagicBallSoundManager(context)
+    }
+
+    //vibration variable
+    val haptics = remember(context) {
+        MagicBallHaptics(context)
+    }
+
+    // Release audio resources when the screen is removed
+    DisposableEffect(soundManager) {
+        onDispose {
+            soundManager.release()
+        }
+    }
+
+    //release vibration when the screen is removed
+    DisposableEffect(haptics) {
+        onDispose {
+            haptics.stop()
+        }
+    }
+
     val generateAnswer = {
         if (question.isNotBlank()) {
             if ( question != previousQuestion ) {
@@ -100,10 +131,11 @@ fun MagicBallApp() {
         if (question.isNotBlank() && !isShaking) {
 
             isShaking = true
-            Log.d("MagicBall", "Shake animation started")
 
             coroutineScope.launch {
                 try {
+                    soundManager.playShake()
+                    haptics.shake()
                     // Move left
                     offsetX.animateTo(-35f, tween(120))
                     rotation.snapTo(-12f)
@@ -128,10 +160,14 @@ fun MagicBallApp() {
                     rotation.snapTo(6f)
 
                     // Return to center
-                    offsetX.animateTo(0f, tween(200))
+                    offsetX.animateTo(0f, tween(280))
                     rotation.snapTo(0f)
 
+                    // generate the answer
                     generateAnswer()
+                    // Play answer sound
+                    soundManager.playAnswer()
+                    haptics.answer()
 
                 } finally {
                     isShaking = false
@@ -329,5 +365,139 @@ fun ShakeDetector(
                 sensorManager.unregisterListener(listener)
             }
         }
+    }
+}
+
+class MagicBallSoundManager(context: Context) {
+
+    private val soundPool = SoundPool.Builder()
+        .setMaxStreams(2)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(
+                    AudioAttributes.CONTENT_TYPE_SONIFICATION
+                )
+                .build()
+        )
+        .build()
+
+    private val loadedSounds = mutableSetOf<Int>()
+
+    private val shakeSound: Int
+    private val answerSound: Int
+
+    init {
+        soundPool.setOnLoadCompleteListener {
+            _, sampleId, status ->
+
+            if (status == 0) {
+                synchronized(loadedSounds) {
+                    loadedSounds.add(sampleId)
+                }
+            }
+        }
+
+        shakeSound = soundPool.load(context, R.raw.shake, 1)
+        answerSound = soundPool.load(context, R.raw.answer, 1)
+    }
+
+    fun playShake() {
+        play(shakeSound)
+    }
+
+    fun playAnswer() {
+        play(answerSound)
+    }
+
+    private fun play(soundId: Int) {
+        val ready = synchronized(loadedSounds) {
+            soundId in loadedSounds
+        }
+
+        if (ready) {
+            soundPool.play(
+                soundId,
+                1f,  // Left volume
+                1f,  // Right volume
+                1,   // Priority
+                0,   // No looping
+                1f   // Normal playback speed
+            )
+        }
+    }
+
+    fun release() {
+        soundPool.release()
+    }
+}
+
+
+class MagicBallHaptics(context: Context) {
+
+    private val vibrator: Vibrator =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(
+                Context.VIBRATOR_MANAGER_SERVICE
+            ) as VibratorManager
+
+            manager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(
+                Context.VIBRATOR_SERVICE
+            ) as Vibrator
+        }
+
+    fun shake() {
+        if (!vibrator.hasVibrator()) return
+
+        val timings = longArrayOf(
+            0, 70, 130, 70, 130, 70,
+            130, 70, 130, 70, 130, 70
+        )
+
+        val amplitudes = intArrayOf(
+            0, 130, 0, 130, 0, 130,
+            0, 130, 0, 130, 0, 130
+        )
+
+        vibrator.vibrate(
+            VibrationEffect.createWaveform(
+                timings,
+                amplitudes,
+                -1
+            )
+        )
+    }
+
+    fun answer() {
+        if (!vibrator.hasVibrator()) return
+
+        val timings = longArrayOf(
+            150,  // Pause before first vibration
+            60,   // First vibration
+            100,  // Pause between vibrations
+            60    // Second vibration
+        )
+
+        val amplitudes = intArrayOf(
+            0,    // No vibration
+            180,  // First pulse
+            0,    // No vibration
+            180   // Second pulse
+        )
+
+        vibrator.vibrate(
+            VibrationEffect.createWaveform(
+                timings,
+                amplitudes,
+                -1
+            )
+        )
+    }
+
+    fun stop() {
+        vibrator.cancel()
     }
 }
