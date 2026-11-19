@@ -7,8 +7,11 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,13 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -67,6 +72,11 @@ fun MagicBallApp() {
     var sameQuestion by remember { mutableStateOf(false) }
     var questionLabel by remember { mutableStateOf("Your question") }
 
+    val rotation = remember { Animatable(0f) }
+    val offsetX = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    var isShaking by remember { mutableStateOf(false) }
+
     val background = Color(0xFF101427)
     val blue = Color(0xFF536DFE)
 
@@ -81,13 +91,58 @@ fun MagicBallApp() {
             else {
                 sameQuestion = true
                 questionLabel = "Ask a different question"
+                answer = "The events haven't change since last time you asked this"
+            }
+        }
+    }
+
+    val animateAndAnswer: () -> Unit = {
+        if (question.isNotBlank() && !isShaking) {
+
+            isShaking = true
+            Log.d("MagicBall", "Shake animation started")
+
+            coroutineScope.launch {
+                try {
+                    // Move left
+                    offsetX.animateTo(-35f, tween(120))
+                    rotation.snapTo(-12f)
+
+                    // Move right
+                    offsetX.animateTo(35f, tween(120))
+                    rotation.snapTo(12f)
+
+                    // Move left again
+                    offsetX.animateTo(-30f, tween(120))
+                    rotation.snapTo(-10f)
+
+                    // Move right again
+                    offsetX.animateTo(30f, tween(120))
+                    rotation.snapTo(10f)
+
+                    // Smaller movements
+                    offsetX.animateTo(-20f, tween(120))
+                    rotation.snapTo(-6f)
+
+                    offsetX.animateTo(20f, tween(120))
+                    rotation.snapTo(6f)
+
+                    // Return to center
+                    offsetX.animateTo(0f, tween(200))
+                    rotation.snapTo(0f)
+
+                    generateAnswer()
+
+                } finally {
+                    isShaking = false
+                }
             }
         }
     }
 
     ShakeDetector(
         enabled = question.isNotBlank(),
-        onShake = generateAnswer
+        onShake = animateAndAnswer
     )
 
     Column(
@@ -147,9 +202,13 @@ fun MagicBallApp() {
         Box(
             modifier = Modifier
                 .size(280.dp)
+                .graphicsLayer {
+                    translationX = offsetX.value
+                    rotationZ = rotation.value
+                }
                 .clip(CircleShape)
-                .clickable (enabled = question.isNotBlank()){
-                    generateAnswer()
+                .clickable (enabled = question.isNotBlank() && !isShaking ){
+                    animateAndAnswer()
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -191,9 +250,9 @@ fun MagicBallApp() {
 
         Button(
             onClick = {
-                generateAnswer()
+                animateAndAnswer()
             },
-            enabled = question.isNotBlank()
+            enabled = question.isNotBlank() && !isShaking
         ) {
             Text("Ask the Magic Ball")
         }
