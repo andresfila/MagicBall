@@ -18,6 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,8 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
@@ -249,26 +253,176 @@ fun MagicBallApp() {
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
+
+                val radius = size.minDimension / 2f
+                val center = Offset(size.width / 2f, size.height / 2f)
+
+                // 1. Glossy black sphere with spherical shading
                 drawCircle(
-                    color = Color.Black,
-                    radius = size.minDimension / 2
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF687386),
+                            Color(0xFF30394B),
+                            Color(0xFF111724),
+                            Color(0xFF030407),
+                            Color.Black
+                        ),
+                        center = Offset(
+                            size.width * 0.30f,
+                            size.height * 0.23f
+                        ),
+                        radius = size.minDimension * 0.85f
+                    ),
+                    radius = radius,
+                    center = center
                 )
 
-                drawCircle(
-                    color = Color(0xFF202845),
-                    radius = size.minDimension * 0.35f
-                )
+                
+                // 2. Curved glossy reflection on the sphere
+                val reflection = Path().apply {
+                    moveTo(
+                        size.width * 0.15f,
+                        size.height * 0.40f
+                    )
 
-                val triangle = Path().apply {
-                    moveTo(size.width / 2, size.height * 0.25f)
-                    lineTo(size.width * 0.78f, size.height * 0.7f)
-                    lineTo(size.width * 0.22f, size.height * 0.7f)
+                    cubicTo(
+                        size.width * 0.12f,
+                        size.height * 0.17f,
+                        size.width * 0.33f,
+                        size.height * 0.06f,
+                        size.width * 0.53f,
+                        size.height * 0.10f
+                    )
+
+                    cubicTo(
+                        size.width * 0.40f,
+                        size.height * 0.13f,
+                        size.width * 0.23f,
+                        size.height * 0.24f,
+                        size.width * 0.15f,
+                        size.height * 0.40f
+                    )
+
                     close()
                 }
 
                 drawPath(
+                    path = reflection,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.40f),
+                            Color.White.copy(alpha = 0.16f),
+                            Color.Transparent
+                        ),
+                        startY = size.height * 0.08f,
+                        endY = size.height * 0.42f
+                    )
+                )
+
+
+                // Soft blue glow around the answer window
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.78f to Color.Transparent,
+                            0.88f to Color(0xFF3268C8).copy(alpha = 0.20f),
+                            0.94f to Color(0xFF3268C8).copy(alpha = 0.10f),
+                            1.0f to Color.Transparent
+                        ),
+                        center = center,
+                        radius = size.minDimension * 0.44f
+                    ),
+                    radius = size.minDimension * 0.44f,
+                    center = center
+                )
+
+
+                // 3. Outer rim of the answer window
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF38445D),
+                            Color(0xFF101827),
+                            Color(0xFF030509)
+                        ),
+                        center = center,
+                        radius = size.minDimension * 0.38f
+                    ),
+                    radius = size.minDimension * 0.37f,
+                    center = center
+                )
+
+                // Thin illuminated ring around the inner window
+                drawCircle(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF7198D5).copy(alpha = 0.65f),
+                            Color(0xFF263F72).copy(alpha = 0.35f),
+                            Color(0xFF050914)
+                        ),
+                        start = Offset(
+                            size.width * 0.25f,
+                            size.height * 0.25f
+                        ),
+                        end = Offset(
+                            size.width * 0.75f,
+                            size.height * 0.75f
+                        )
+                    ),
+                    radius = size.minDimension * 0.345f,
+                    center = center
+                )
+
+                // 4. Dark blue inner window
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF243C73),
+                            Color(0xFF101C3B),
+                            Color(0xFF040817)
+                        ),
+                        center = center,
+                        radius = size.minDimension * 0.34f
+                    ),
+                    radius = size.minDimension * 0.33f,
+                    center = center
+                )
+
+                // 5. Blue triangular answer window
+                val triangle = Path().apply {
+                    moveTo(size.width / 2f, size.height * 0.25f)
+                    lineTo(size.width * 0.78f, size.height * 0.70f)
+                    lineTo(size.width * 0.22f, size.height * 0.70f)
+                    close()
+                }
+
+                // Soft blue illumination behind the triangle
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF438BFF).copy(alpha = 0.30f),
+                            Color(0xFF2452C8).copy(alpha = 0.12f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = size.minDimension * 0.31f
+                    ),
+                    center = center,
+                    radius = size.minDimension * 0.31f
+                )
+
+                drawPath(
                     path = triangle,
-                    color = blue
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF9BD4FF),
+                            Color(0xFF3978F5),
+                            Color(0xFF142D91)
+                        ),
+                        startY = size.height * 0.25f,
+                        endY = size.height * 0.70f
+                    )
                 )
             }
 
@@ -300,6 +454,32 @@ fun MagicBallApp() {
             fontSize = 12.sp,
             color = Color.Gray
         )
+    }
+}
+
+@Composable
+fun GlossyMagicBall(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0.0f to Color(0xFF737D91),
+                        0.18f to Color(0xFF353E52),
+                        0.48f to Color(0xFF151B29),
+                        0.78f to Color(0xFF080B12),
+                        1.0f to Color.Black
+                    ),
+                    center = Offset(190f, 140f),
+                    radius = 600f
+                ),
+                shape = CircleShape
+            )
+    ) {
+        content()
     }
 }
 
