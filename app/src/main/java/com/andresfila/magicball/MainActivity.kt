@@ -1,6 +1,12 @@
 package com.andresfila.magicball
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -18,10 +24,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
@@ -61,6 +69,26 @@ fun MagicBallApp() {
 
     val background = Color(0xFF101427)
     val blue = Color(0xFF536DFE)
+
+    val generateAnswer = {
+        if (question.isNotBlank()) {
+            if ( question != previousQuestion ) {
+                answer = answers.random()
+                sameQuestion = false;
+                previousQuestion = question
+                questionLabel = "Your question"
+            }
+            else {
+                sameQuestion = true
+                questionLabel = "Ask a different question"
+            }
+        }
+    }
+
+    ShakeDetector(
+        enabled = question.isNotBlank(),
+        onShake = generateAnswer
+    )
 
     Column(
         modifier = Modifier
@@ -121,16 +149,7 @@ fun MagicBallApp() {
                 .size(280.dp)
                 .clip(CircleShape)
                 .clickable (enabled = question.isNotBlank()){
-                    if ( question != previousQuestion ) {
-                        answer = answers.random()
-                        previousQuestion = question
-                        sameQuestion = false;
-                        questionLabel = "Your question"
-                    }
-                    else {
-                        sameQuestion = true
-                        questionLabel = "Ask a different question"
-                    }
+                    generateAnswer()
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -172,16 +191,7 @@ fun MagicBallApp() {
 
         Button(
             onClick = {
-                if ( question != previousQuestion ){
-                    answer = answers.random()
-                    previousQuestion = question
-                    sameQuestion = false;
-                    questionLabel = "Your question"
-                }
-                else {
-                    sameQuestion = true
-                    questionLabel = "Ask a different question"
-                }
+                generateAnswer()
             },
             enabled = question.isNotBlank()
         ) {
@@ -195,5 +205,70 @@ fun MagicBallApp() {
             fontSize = 12.sp,
             color = Color.Gray
         )
+    }
+}
+
+@Composable
+fun ShakeDetector(
+    enabled: Boolean,
+    onShake: () -> Unit
+) {
+    val context = LocalContext.current
+    val currentOnShake by rememberUpdatedState(onShake)
+
+    DisposableEffect(context, enabled) {
+        if (!enabled) {
+            onDispose { }
+        } else {
+            val sensorManager = context.getSystemService(
+                Context.SENSOR_SERVICE
+            ) as SensorManager
+
+            val accelerometer = sensorManager.getDefaultSensor(
+                Sensor.TYPE_ACCELEROMETER
+            )
+
+            var lastShakeTime = 0L
+
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    val x = event.values[0]
+                    val y = event.values[1]
+                    val z = event.values[2]
+
+                    val acceleration = sqrt(
+                        x * x + y * y + z * z
+                    ) / SensorManager.GRAVITY_EARTH
+
+                    val now = SystemClock.elapsedRealtime()
+
+                    if (acceleration > 2.5f &&
+                        now - lastShakeTime > 1200L
+                    ) {
+                        lastShakeTime = now
+                        currentOnShake()
+                    }
+                }
+
+                override fun onAccuracyChanged(
+                    sensor: Sensor?,
+                    accuracy: Int
+                ) {
+                    // No action required
+                }
+            }
+
+            if (accelerometer != null) {
+                sensorManager.registerListener(
+                    listener,
+                    accelerometer,
+                    SensorManager.SENSOR_DELAY_GAME
+                )
+            }
+
+            onDispose {
+                sensorManager.unregisterListener(listener)
+            }
+        }
     }
 }
