@@ -38,9 +38,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -62,17 +64,21 @@ class MainActivity : ComponentActivity() {
 fun MagicBallApp() {
     val answers = listOf(
         "It is certain",
-        "Without a doubt",
-        "Yes, definitely",
+        "⭐ Without a doubt",
+        "💫 Yes, definitely",
         "Most likely",
-        "Signs point to yes",
-        "Ask again later",
+        "🌠 Signs point to yes",
+        "🌙 Ask again later",
         "Cannot predict now",
+        "🌌 The universe says YES!",
+        "🪄 Trust your instincts",
         "Better not tell you now",
-        "Don't count on it",
-        "My sources say no",
+        "🌑 Don't count on it",
+        "👻 My sources say no",
         "Very doubtful",
-        "Outlook not so good"
+        "Outlook not so good",
+        "🔮 The future is right!",
+        "💫 Very likely!"
     )
 
     var question by remember { mutableStateOf("") }
@@ -84,7 +90,14 @@ fun MagicBallApp() {
 
     val rotation = remember { Animatable(0f) }
     val offsetX = remember { Animatable(0f) }
+
     val coroutineScope = rememberCoroutineScope()
+
+    // Answer reveal animation
+    val answerAlpha = remember { Animatable(1f) }
+    val answerScale = remember { Animatable(1f) }
+    val answerGlow = remember { Animatable(0f) }
+
     var isShaking by remember { mutableStateOf(false) }
 
     val background = Color(0xFF101427)
@@ -161,6 +174,12 @@ fun MagicBallApp() {
 
             coroutineScope.launch {
                 try {
+
+                    // Hide the previous answer before shaking
+                    answerAlpha.snapTo(0f)
+                    answerScale.snapTo(0.65f)
+                    answerGlow.snapTo(0f)
+
                     if (soundEnabled) {
                         soundManager.playShake()
                     }
@@ -205,6 +224,32 @@ fun MagicBallApp() {
                     if (vibrationEnabled) {
                         haptics.answer()
                     }
+
+                    // Briefly illuminate the answer, then fade the glow away
+                    launch {
+                        answerGlow.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 250)
+                        )
+
+                        answerGlow.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 650)
+                        )
+                    }
+
+                    // Reveal the answer with fade and scale animations
+                    launch {
+                        answerAlpha.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 650)
+                        )
+                    }
+
+                    answerScale.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 650)
+                    )
 
                 } finally {
                     isShaking = false
@@ -505,7 +550,22 @@ fun MagicBallApp() {
                 fontWeight = FontWeight.Bold,
                 fontSize = if (answer == "8") 48.sp else 15.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(125.dp)
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = Color(0xFF66CCFF).copy(
+                            alpha = answerGlow.value
+                        ),
+                        offset = Offset.Zero,
+                        blurRadius = 18f * answerGlow.value
+                    )
+                ),
+                modifier = Modifier
+                    .width(125.dp)
+                    .graphicsLayer {
+                        alpha = answerAlpha.value
+                        scaleX = answerScale.value
+                        scaleY = answerScale.value
+                    }
             )
         }
 
