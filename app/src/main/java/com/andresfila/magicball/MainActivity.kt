@@ -101,6 +101,29 @@ fun MagicBallApp() {
         MagicBallHaptics(context)
     }
 
+    val preferences = remember(context) {
+        context.getSharedPreferences(
+            "magicball_settings",
+            Context.MODE_PRIVATE
+        )
+    }
+
+    var soundEnabled by remember {
+        mutableStateOf(
+            preferences.getBoolean("sound_enabled", true)
+        )
+    }
+
+    var vibrationEnabled by remember {
+        mutableStateOf(
+            preferences.getBoolean("vibration_enabled", true)
+        )
+    }
+
+    var showSettings by remember {
+        mutableStateOf(false)
+    }
+
     // Release audio resources when the screen is removed
     DisposableEffect(soundManager) {
         onDispose {
@@ -138,8 +161,13 @@ fun MagicBallApp() {
 
             coroutineScope.launch {
                 try {
-                    soundManager.playShake()
-                    haptics.shake()
+                    if (soundEnabled) {
+                        soundManager.playShake()
+                    }
+
+                    if (vibrationEnabled) {
+                        haptics.shake()
+                    }
                     // Move left
                     offsetX.animateTo(-35f, tween(120))
                     rotation.snapTo(-12f)
@@ -170,8 +198,13 @@ fun MagicBallApp() {
                     // generate the answer
                     generateAnswer()
                     // Play answer sound
-                    soundManager.playAnswer()
-                    haptics.answer()
+                    if (soundEnabled) {
+                        soundManager.playAnswer()
+                    }
+
+                    if (vibrationEnabled) {
+                        haptics.answer()
+                    }
 
                 } finally {
                     isShaking = false
@@ -185,6 +218,46 @@ fun MagicBallApp() {
         onShake = animateAndAnswer
     )
 
+    // ====================================
+    // NEW: Display Settings screen
+    // ====================================
+
+    if (showSettings) {
+        MagicBallSettingsScreen(
+            soundEnabled = soundEnabled,
+            vibrationEnabled = vibrationEnabled,
+
+            onSoundChanged = { enabled ->
+                soundEnabled = enabled
+
+                preferences.edit()
+                    .putBoolean("sound_enabled", enabled)
+                    .apply()
+            },
+
+            onVibrationChanged = { enabled ->
+                vibrationEnabled = enabled
+
+                preferences.edit()
+                    .putBoolean("vibration_enabled", enabled)
+                    .apply()
+
+                if (!enabled) {
+                    haptics.stop()
+                }
+            },
+
+            onBack = {
+                showSettings = false
+            }
+        )
+
+        return
+    }
+
+    // ====================================
+    // EXISTING MAIN UI
+    // ====================================
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -449,11 +522,82 @@ fun MagicBallApp() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        TextButton(
+                onClick = {
+                    showSettings = true
+                }
+        ) {
+                Text("⚙ Settings")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             text = "For entertainment purposes only",
             fontSize = 12.sp,
             color = Color.Gray
         )
+    }
+}
+
+
+@Composable
+fun MagicBallSettingsScreen(
+    soundEnabled: Boolean,
+    vibrationEnabled: Boolean,
+    onSoundChanged: (Boolean) -> Unit,
+    onVibrationChanged: (Boolean) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+        ) {
+            Text(
+                text = "← Back to MagicBall",
+                fontSize = 18.sp
+            )
+        }
+
+        Text(
+            text = "Settings",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Sound effects")
+
+            Switch(
+                checked = soundEnabled,
+                onCheckedChange = onSoundChanged
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Vibration")
+
+            Switch(
+                checked = vibrationEnabled,
+                onCheckedChange = onVibrationChanged
+            )
+        }
     }
 }
 
