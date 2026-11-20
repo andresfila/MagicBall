@@ -82,11 +82,14 @@ fun MagicBallApp() {
     )
 
     var question by remember { mutableStateOf("") }
-    var previousQuestion by remember { mutableStateOf("") }
+    var immediatePreviousQuestion by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("8") }
     var showQuestion by remember { mutableStateOf(false) }
     var sameQuestion by remember { mutableStateOf(false) }
     var questionLabel by remember { mutableStateOf("Your question") }
+
+    var isShaking by remember { mutableStateOf(false) }
+
 
     val rotation = remember { Animatable(0f) }
     val offsetX = remember { Animatable(0f) }
@@ -97,8 +100,6 @@ fun MagicBallApp() {
     val answerAlpha = remember { Animatable(1f) }
     val answerScale = remember { Animatable(1f) }
     val answerGlow = remember { Animatable(0f) }
-
-    var isShaking by remember { mutableStateOf(false) }
 
     val background = Color(0xFF101427)
     val blue = Color(0xFF536DFE)
@@ -136,6 +137,16 @@ fun MagicBallApp() {
     var showSettings by remember {
         mutableStateOf(false)
     }
+    // v1.8: History screen visibility
+    var showHistory by remember {
+        mutableStateOf(false)
+    }
+
+    // v1.8: Persistent question and answer history
+    val historyManager = remember(context) {
+        MagicBallHistory(context)
+    }
+
 
     // Release audio resources when the screen is removed
     DisposableEffect(soundManager) {
@@ -153,10 +164,19 @@ fun MagicBallApp() {
 
     val generateAnswer = {
         if (question.isNotBlank()) {
-            if ( question != previousQuestion ) {
-                answer = answers.random()
+            if ( question != immediatePreviousQuestion ) {
+                // Check whether this question already has a stored answer
+                val storedAnswer = historyManager.findAnswer(question)
+
+                // Retrieve the existing answer or generate a new one
+                answer = historyManager.getOrCreateAnswer(question) {
+                    answers.random()
+                }
+
+                // Preserve the existing state variables
+                //sameQuestion = storedAnswer != null
                 sameQuestion = false;
-                previousQuestion = question
+                immediatePreviousQuestion = question
                 questionLabel = "Your question"
             }
             else {
@@ -166,6 +186,7 @@ fun MagicBallApp() {
             }
         }
     }
+
 
     val animateAndAnswer: () -> Unit = {
         if (question.isNotBlank() && !isShaking) {
@@ -292,11 +313,31 @@ fun MagicBallApp() {
                 }
             },
 
+            onViewHistory = {
+                showSettings = false
+                showHistory = true
+            },
+
             onBack = {
                 showSettings = false
             }
         )
 
+        return
+    }
+
+
+    // ====================================
+    // NEW: Display History screen
+    // ====================================
+    if (showHistory) {
+        MagicBallHistoryScreen(
+            historyManager = historyManager,
+            onBack = {
+                showHistory = false
+                showSettings = true
+            }
+        )
         return
     }
 
@@ -339,21 +380,6 @@ fun MagicBallApp() {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
-
-        /*
-        Spacer(modifier = Modifier.height(32.dp))
-
-        if (showQuestion) {
-            Text(
-                text = previousQuestion,
-                color = blue,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(125.dp)
-            )
-        }
-        */
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -607,6 +633,7 @@ fun MagicBallSettingsScreen(
     vibrationEnabled: Boolean,
     onSoundChanged: (Boolean) -> Unit,
     onVibrationChanged: (Boolean) -> Unit,
+    onViewHistory: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -656,6 +683,20 @@ fun MagicBallSettingsScreen(
             Switch(
                 checked = vibrationEnabled,
                 onCheckedChange = onVibrationChanged
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(
+            onClick = onViewHistory,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+        ) {
+            Text(
+                text = "View Question History",
+                fontSize = 18.sp
             )
         }
     }
